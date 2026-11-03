@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Симулятор Arduino та ESP</title>
+  <meta name="description" content="Онлайн-симулятор Arduino Uno, ESP8266 та ESP32 з резисторами, світлодіодами, моторами, сервоприводами, датчиками та дисплеєм. Пишіть код і перевіряйте схему прямо в браузері.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f6e7a'/><circle cx='16' cy='16' r='7' fill='%23ffcc33'/></svg>">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.css">
+  <link rel="stylesheet" href="vendor/codemirror/material-darker.css">
+  <link rel="stylesheet" href="vendor/codemirror/show-hint.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">⚡</span><span class="brand-txt">Симулятор <b>Arduino / ESP</b></span></div>
+    <label class="board-sel" title="Виберіть плату">
+      <select id="board">
+        <option value="uno">Arduino Uno</option>
+        <option value="esp8266">ESP8266 NodeMCU</option>
+        <option value="esp32">ESP32 DevKit</option>
+      </select>
+    </label>
+    <button id="btnVerify" class="btn" title="Перевірити (скомпілювати) код">✓ <span class="lbl">Перевірити</span></button>
+    <button id="btnRun" class="btn primary" title="Запустити симуляцію (Ctrl+Enter)">▶ <span class="lbl">Запуск</span></button>
+    <button id="btnStop" class="btn" title="Зупинити" disabled>■ <span class="lbl">Стоп</span></button>
+    <div id="status" class="status idle"><i></i><span>Зупинено</span></div>
+    <div class="spacer"></div>
+    <select id="examples" class="btn" title="Готові приклади"></select>
+    <button id="btnNew" class="btn ghost" title="Новий проєкт">📄 <span class="lbl">Новий</span></button>
+    <button id="btnOpen" class="btn ghost" title="Відкрити проєкт (.sim.json) або скетч (.ino)">📂 <span class="lbl">Відкрити</span></button>
+    <button id="btnSave" class="btn ghost" title="Зберегти проєкт у файл">💾 <span class="lbl">Зберегти</span></button>
+    <button id="btnMute" class="btn ghost" title="Звук увімк./вимк.">🔊</button>
+    <button id="btnHelp" class="btn ghost" title="Довідка">❔</button>
+    <input type="file" id="fileInput" accept=".json,.ino,.cpp,.txt" hidden>
+  </header>
+
+  <main>
+    <section id="codePane">
+      <div class="pane-head"><span>📝 Скетч <span class="dim">sketch.ino</span></span><span id="boardInfo" class="dim"></span></div>
+      <div id="editorWrap"><textarea id="code" spellcheck="false"></textarea></div>
+    </section>
+    <div id="splitter" title="Перетягніть, щоб змінити ширину"></div>
+    <section id="rightPane">
+      <div id="circuit">
+        <div id="palette" aria-label="Компоненти"></div>
+        <div id="canvasWrap">
+          <svg id="schem" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div id="zoomCtl">
+            <button id="zoomIn" title="Збільшити">＋</button>
+            <button id="zoomOut" title="Зменшити">－</button>
+            <button id="zoomFit" title="Показати всю схему">⤢</button>
+          </div>
+          <div id="hint" class="canvas-hint">Клацніть на вивід (кружечок) і потім на інший — з'явиться дріт · Колесо — масштаб · Тягніть фон — переміщення</div>
+          <div id="circuitWarn" hidden></div>
+          <aside id="props" hidden></aside>
+          <div id="tip" hidden></div>
+        </div>
+      </div>
+      <div id="hsplit" title="Перетягніть, щоб змінити висоту"></div>
+      <div id="bottom">
+        <div class="tabs">
+          <button class="tab on" data-tab="serial">🖥 Монітор порту</button>
+          <button class="tab" data-tab="plot">📈 Плоттер</button>
+          <button class="tab" data-tab="msgs">💬 Повідомлення <span id="msgBadge" class="badge" hidden></span></button>
+        </div>
+        <div id="tab-serial" class="tabpane">
+          <pre id="serialOut"></pre>
+          <div class="serial-bar">
+            <input id="serialIn" placeholder="Надіслати в Serial (Enter)…" autocomplete="off">
+            <button id="serialSend" class="btn small">Надіслати</button>
+            <select id="lineEnd" class="small" title="Закінчення рядка">
+              <option value="nl">Новий рядок</option>
+              <option value="none">Без закінчення</option>
+              <option value="cr">CR</option>
+              <option value="both">NL і CR</option>
+            </select>
+            <select id="baud" class="small" title="Швидкість (бод) — має збігатися з Serial.begin()">
+              <option>300</option><option>1200</option><option>2400</option><option>4800</option>
+              <option selected>9600</option><option>19200</option><option>38400</option><option>57600</option>
+              <option>74880</option><option>115200</option><option>230400</option>
+            </select>
+            <label class="chk"><input type="checkbox" id="autoscroll" checked> автопрокрутка</label>
+            <button id="serialClear" class="btn small ghost" title="Очистити">🧹</button>
+          </div>
+        </div>
+        <div id="tab-plot" class="tabpane" hidden>
+          <canvas id="plot"></canvas>
+          <div id="plotLegend"></div>
+        </div>
+        <div id="tab-msgs" class="tabpane" hidden>
+          <div id="liveWarn"></div>
+          <div id="logList"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <div id="help" class="modal" hidden>
+    <div class="modal-box">
+      <button class="icon-btn modal-close" data-a="close-help">✕</button>
+      <h2>Як користуватися симулятором</h2>
+      <ol>
+        <li><b>Виберіть плату</b> вгорі: Arduino Uno (5 В), ESP8266 NodeMCU або ESP32 (3.3 В).</li>
+        <li><b>Додайте компоненти</b> з панелі ліворуч від схеми — просто клацніть на потрібний.</li>
+        <li><b>З'єднайте дротами</b>: клацніть на вивід (кружечок або квадратик піна), потім на інший вивід. Можна й просто протягнути мишею. <kbd>Esc</kbd> або правий клік — скасувати.</li>
+        <li><b>Напишіть код</b> ліворуч (звичайний Arduino C++) і натисніть <b>▶ Запуск</b> (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>).</li>
+        <li>Під час роботи <b>натискайте кнопки</b>, крутіть <b>потенціометр</b> (тягніть ручку або коліщатко миші), змінюйте освітлення фоторезистора чи відстань для HC‑SR04.</li>
+        <li>Наведіть мишу на будь-який вивід — побачите <b>напругу</b>, режим піна та його можливості.</li>
+      </ol>
+      <h3>Що моделюється</h3>
+      <ul>
+        <li>Справжній розрахунок кола: закон Ома, падіння напруги на світлодіодах і діодах, транзистори та MOSFET як ключі, ШІМ із правильним усередненням.</li>
+        <li>Попередження про типові помилки: світлодіод без резистора (перегорить!), перевантаження піна, коротке замикання, 5 В на вхід ESP, мотор напряму від піна, «плаваючий» вхід без підтягувального резистора.</li>
+        <li>Монітор порту з введенням, плоттер графіків, звук зумера.</li>
+      </ul>
+      <h3>Підтримувані функції</h3>
+      <p class="api"><code>pinMode digitalWrite digitalRead analogRead analogWrite delay millis micros map constrain random tone noTone pulseIn attachInterrupt Serial.* String</code><br>
+      Бібліотеки: <code>Servo / ESP32Servo</code>, <code>LiquidCrystal_I2C</code>, <code>Wire</code>, <code>WiFi</code> (імітація).<br>
+      ESP32: <code>ledcSetup ledcAttachPin ledcAttach ledcWrite dacWrite touchRead</code>. ESP8266: <code>D0…D8</code>, <code>analogWriteRange</code>.</p>
+      <h3>Обмеження</h3>
+      <p>Код не компілюється справжнім компілятором, а перетворюється на JavaScript, тож підтримується найуживаніша частина C++: змінні, масиви, функції, цикли, <code>#define</code>, <code>enum</code>, <code>static</code>. Не підтримуються <code>struct</code>/<code>class</code>, вказівники та сторонні бібліотеки. Wi‑Fi лише імітується.</p>
+      <h3>Гарячі клавіші</h3>
+      <p><kbd>Ctrl</kbd>+<kbd>Enter</kbd> запуск · <kbd>R</kbd> повернути компонент · <kbd>Del</kbd> видалити · <kbd>Ctrl</kbd>+<kbd>Z</kbd> скасувати зміну схеми · <kbd>Ctrl</kbd>+<kbd>Space</kbd> автодоповнення.</p>
+    </div>
+  </div>
+
+  <script src="vendor/codemirror/codemirror.js"></script>
+  <script src="vendor/codemirror/clike.js"></script>
+  <script src="vendor/codemirror/matchbrackets.js"></script>
+  <script src="vendor/codemirror/closebrackets.js"></script>
+  <script src="vendor/codemirror/active-line.js"></script>
+  <script src="vendor/codemirror/comment.js"></script>
+  <script src="vendor/codemirror/show-hint.js"></script>
+  <script src="js/transpiler.js"></script>
+  <script src="js/boards.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/runtime.js"></script>
+  <script src="js/schematic.js"></script>
+  <script src="js/examples.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

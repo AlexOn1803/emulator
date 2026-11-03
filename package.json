@@ -1,0 +1,11 @@
+{
+  "name": "arduino-esp-simulator",
+  "version": "1.0.0",
+  "description": "Браузерний симулятор Arduino Uno, ESP8266 та ESP32 з електронними компонентами",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node test/unit.test.js && node test/examples.test.js"
+  },
+  "license": "MIT"
+}
