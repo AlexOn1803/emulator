@@ -545,8 +545,8 @@
         h += `<div class="props-sub">${esc(b.mcu)}</div><ul class="board-facts">
           <li>Логічний рівень: <b>${b.vcc} В</b></li>
           <li>Макс. струм піна: <b>${b.pinMaxmA} мА</b></li>
-          <li>ШІМ (analogWrite): ${b.id === 'uno' ? '3, 5, 6, 9, 10, 11' : 'майже всі GPIO'}</li>
-          <li>АЦП: ${b.adcBits} біт (0–${(1 << b.adcBits) - 1}), ${b.id === 'esp8266' ? 'лише A0' : b.id === 'uno' ? 'A0–A5' : 'GPIO32–39 (ADC1) та ін.'}</li>
+          <li>ШІМ (analogWrite): ${b.pwmDesc}</li>
+          <li>АЦП: ${b.adcBits} біт (0–${(1 << b.adcBits) - 1}), ${b.adcDesc}</li>
           <li>I2C: SDA — ${b.pinName(b.sda)}, SCL — ${b.pinName(b.scl)}</li>
           <li>LED_BUILTIN: ${b.pinName(b.led.gpio)}${b.led.activeLow ? ' (вмикається LOW!)' : ''}</li>
         </ul><div class="props-sub">Наведіть мишу на пін, щоб побачити його можливості та напругу.</div>`;
@@ -869,13 +869,13 @@
     },
     checkBaud() {
       const mon = +$('#baud').value;
-      const ok = !this.runtime.running || !this.runtime.serialBaud || mon === this.runtime.serialBaud;
+      const ok = !this.runtime.running || !this.runtime.serialBaud || mon === this.runtime.serialBaud || Sim.Boards[this.project.board].usbCdc;
       $('#baud').classList.toggle('mismatch', !ok);
       if (!ok) this.log(`⚠ Швидкість монітора (${mon}) не збігається з Serial.begin(${this.runtime.serialBaud}) — замість тексту будуть «кракозябри». Виберіть ${this.runtime.serialBaud} бод.`, 'warn');
     },
     serialOut(s) {
       const mon = +$('#baud').value;
-      if (this.runtime.serialBaud && mon !== this.runtime.serialBaud) {
+      if (this.runtime.serialBaud && mon !== this.runtime.serialBaud && !Sim.Boards[this.project.board].usbCdc) {
         s = s.replace(/[^\n]/g, () => '⸮�ÿ~x'[Math.floor(Math.random() * 5)]);
       }
       this.serialBuf += s;

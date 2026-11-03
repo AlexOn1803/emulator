@@ -250,10 +250,10 @@
       let interruptsOn = true;
       rt.interruptsOn = () => interruptsOn;
 
-      const toGpio = (p) => (p instanceof CChar ? p.valueOf() : typeof p === 'number' ? p : num(p));
-      const isEsp32 = b.id === 'esp32';
-      const isEsp8266 = b.id === 'esp8266';
-      const isUno = b.id === 'uno';
+      const toGpio = (p) => { p = p instanceof CChar ? p.valueOf() : typeof p === 'number' ? p : num(p); return b.pinAlias && b.pinAlias[p] != null ? b.pinAlias[p] : p; };
+      const isEsp32 = b.family === 'esp32';
+      const isEsp8266 = b.family === 'esp8266';
+      const isAvr = b.family === 'avr';
 
       const api = {};
       Object.assign(api, b.consts);
@@ -288,8 +288,8 @@
         p = toGpio(p);
         if (!rt.checkPin(p, 'pinMode')) return;
         const m = MODES[num(mode)] || 'input';
-        if (isEsp32 && m === 'output' && b.inputOnly.includes(p)) rt.warnOnce('io' + p, `GPIO${p} на ESP32 працює лише як вхід (34–39 не можуть бути OUTPUT)`);
-        if (isEsp8266 && (p === 6 || p === 7 || p === 8 || p === 9 || p === 10 || p === 11)) rt.warnOnce('flash' + p, `GPIO${p} на ESP8266 зайнятий флеш-пам'яттю — не використовуйте його`);
+        if (m === 'output' && b.inputOnly && b.inputOnly.includes(p)) rt.warnOnce('io' + p, `GPIO${p} на ${b.name} працює лише як вхід (не може бути OUTPUT)`);
+        if (b.flashPins && b.flashPins.includes(p)) rt.warnOnce('flash' + p, `GPIO${p} на ESP8266 зайнятий флеш-пам'яттю — не використовуйте його`);
         const st = rt.pin(p);
         st.mode = m;
         if (m !== 'output') { st.duty = null; st.tone = 0; st.dac = null; }
@@ -306,9 +306,9 @@
           st.duty = null;
           st.dac = null;
           st.tone = 0;
-        } else if (isUno && st.mode !== 'output') {
+        } else if (isAvr && st.mode !== 'output') {
           st.mode = val ? 'input_pullup' : 'input';
-          if (!st.configured) rt.warnOnce('dwin' + p, `digitalWrite(${p}) викликано без pinMode(${p}, OUTPUT) — на Uno це лише вмикає слабкий підтягувальний резистор (світлодіод світитиметься ледь-ледь)`);
+          if (!st.configured) rt.warnOnce('dwin' + p, `digitalWrite(${p}) викликано без pinMode(${p}, OUTPUT) — на AVR-платах (Uno, Micro) це лише вмикає слабкий підтягувальний резистор (світлодіод світитиметься ледь-ледь)`);
         } else {
           rt.warnOnce('dwin' + p, `digitalWrite(${p}) не працює: пін не налаштований як OUTPUT. Додайте pinMode(${p}, OUTPUT) у setup()`);
         }
@@ -324,15 +324,14 @@
 
       // ---------- аналог
       api.analogRead = (p) => {
-        p = toGpio(p);
-        if (isUno && p >= 0 && p <= 5) p += 14;
-        if (isEsp8266 && p === 0) p = 17;
+        p = p instanceof CChar ? p.valueOf() : num(p);
+        if (b.analogMap && b.analogMap[p] != null) p = b.analogMap[p];
         if (!rt.checkPin(p, 'analogRead')) return 0;
         if (!b.adcPins.includes(p)) {
           rt.warnOnce('adc' + p, `analogRead(${p}): цей пін не має АЦП на платі ${b.name}`);
           return 0;
         }
-        if (isEsp32 && b.adc2Pins.includes(p) && api.WiFi && api.WiFi._began) rt.warnOnce('adc2' + p, `GPIO${p} належить до ADC2, який не працює разом з Wi‑Fi на ESP32. Використайте GPIO32–39.`);
+        if (b.adc2Pins && b.adc2Pins.includes(p) && api.WiFi && api.WiFi._began) rt.warnOnce('adc2' + p, `GPIO${p} належить до ADC2, який не працює разом з Wi‑Fi на ${b.name}. Використайте піни ADC1.`);
         const V = eng.readVoltage(p);
         const max = (1 << adcBits) - 1;
         let ref = b.adcRef;
@@ -364,7 +363,7 @@
         v = num(v);
         const range = isEsp8266 ? pwmRes8266 : pwmRange;
         if (!b.pwmPins.includes(p)) {
-          if (isUno) rt.warnOnce('nopwm' + p, `Пін ${p} на Arduino Uno не підтримує ШІМ (лише 3, 5, 6, 9, 10, 11) — analogWrite працює як digitalWrite`);
+          if (isAvr) rt.warnOnce('nopwm' + p, `Пін ${p} на ${b.name} не підтримує ШІМ (лише ${b.pwmDesc}) — analogWrite працює як digitalWrite`);
           setDuty(p, v >= range / 2 ? 1 : 0);
           return;
         }
@@ -412,17 +411,19 @@
           eng.dirty = true;
           return num(freq);
         };
-        api.dacWrite = (p, v) => {
+        if (b.dacPins && b.dacPins.length) api.dacWrite = (p, v) => {
           p = toGpio(p);
-          if (!b.dacPins.includes(p)) { rt.warnOnce('dac' + p, `dacWrite: ЦАП є лише на GPIO25 і GPIO26`); return; }
+          if (!b.dacPins.includes(p)) { rt.warnOnce('dac' + p, `dacWrite: ЦАП є лише на GPIO${b.dacPins.join(' і GPIO')}`); return; }
           const st = rt.pin(p);
           st.mode = 'output';
           st.duty = null;
           st.dac = (Math.max(0, Math.min(255, num(v))) / 255) * Vcc;
           eng.dirty = true;
         };
-        api.touchRead = () => 60;
-        api.hallRead = () => 0;
+        if (b.touch) {
+          api.touchRead = () => 60;
+          api.hallRead = () => 0;
+        }
         api.temperatureRead = () => 45.5;
       }
 
@@ -567,17 +568,20 @@
       // ---------- переривання
       api.digitalPinToInterrupt = (p) => {
         p = toGpio(p);
-        if (isUno) return p === 2 ? 0 : p === 3 ? 1 : -1;
+        if (b.interruptPins) {
+          for (const [k, v] of Object.entries(b.interruptPins)) if (v === p) return +k;
+          return -1;
+        }
         return p;
       };
       api.attachInterrupt = (n, fn, mode) => {
         n = num(n);
-        const p = isUno ? b.interruptPins[n] : n;
-        if (p == null || n < 0) { rt.warnOnce('int' + n, `attachInterrupt: на Uno переривання працюють лише на пінах 2 і 3`); return; }
+        const p = b.interruptPins ? b.interruptPins[n] : n;
+        if (p == null || n < 0) { rt.warnOnce('int' + n, `attachInterrupt: на ${b.name} переривання працюють лише на пінах ${Object.values(b.interruptPins || {}).join(', ')}. Використовуйте digitalPinToInterrupt(пін).`); return; }
         if (typeof fn !== 'function') return;
         rt.interrupts.set(p, { fn, mode: num(mode), last: null });
       };
-      api.detachInterrupt = (n) => { n = num(n); rt.interrupts.delete(isUno ? b.interruptPins[n] : n); };
+      api.detachInterrupt = (n) => { n = num(n); rt.interrupts.delete(b.interruptPins ? b.interruptPins[n] : n); };
       api.interrupts = () => { interruptsOn = true; };
       api.noInterrupts = () => { interruptsOn = false; };
       api.sei = api.interrupts;
@@ -586,13 +590,13 @@
       // ---------- Serial
       api.Serial = rt.makeSerial(api);
       api.Serial1 = api.Serial;
-      if (isEsp32) api.Serial2 = api.Serial;
+      if (b.serial2) api.Serial2 = api.Serial;
 
       // ---------- Wire / I2C
       rt.i2c = { sda: b.sda, scl: b.scl };
       api.Wire = {
         begin(sda, scl) {
-          if (sda != null && scl != null && typeof sda === 'number' && !isUno) rt.i2c = { sda: toGpio(sda), scl: toGpio(scl) };
+          if (sda != null && scl != null && typeof sda === 'number' && !isAvr) rt.i2c = { sda: toGpio(sda), scl: toGpio(scl) };
           rt.wireBegun = true;
           return true;
         },
@@ -611,7 +615,6 @@
         attach(p, mn, mx) {
           p = toGpio(p);
           if (!rt.checkPin(p, 'Servo.attach')) return 0;
-          if (isUno && !b.pwmPins.includes(p)) { /* бібліотека Servo працює на будь-якому піні */ }
           this.pin = p;
           if (mn != null) this.min = num(mn);
           if (mx != null) this.max = num(mx);
@@ -726,7 +729,7 @@
           status() { return this._began && performance.now() >= this._at ? WL.WL_CONNECTED : this._began ? WL.WL_DISCONNECTED : WL.WL_IDLE_STATUS; },
           isConnected() { return this.status() === WL.WL_CONNECTED; },
           localIP() { return this.status() === WL.WL_CONNECTED ? ip : new api.IPAddress(0, 0, 0, 0); },
-          macAddress() { return isEsp32 ? '24:6F:28:AB:CD:EF' : 'A4:CF:12:AB:CD:EF'; },
+          macAddress() { return b.chip.mac; },
           SSID() { return this._ssid; },
           RSSI() { return -52 - Math.floor(Math.random() * 6); },
           mode() {},
@@ -741,9 +744,9 @@
         api.ESP = {
           restart() { if (rt.hooks.restart) setTimeout(() => rt.hooks.restart(), 10); throw STOP; },
           getChipId() { return 0xabcdef; },
-          getFreeHeap() { return isEsp32 ? 291000 : 41000; },
-          getCpuFreqMHz() { return isEsp32 ? 240 : 80; },
-          getChipModel() { return isEsp32 ? 'ESP32-D0WDQ6' : 'ESP8266EX'; },
+          getFreeHeap() { return b.chip.heap; },
+          getCpuFreqMHz() { return b.chip.mhz; },
+          getChipModel() { return b.chip.model; },
           getEfuseMac() { return 0xefcdab286f24; },
           deepSleep() { throw STOP; },
         };
@@ -897,12 +900,10 @@
       const e32Only = ['ledcSetup', 'ledcAttachPin', 'ledcAttach', 'ledcWrite', 'ledcWriteTone', 'dacWrite', 'touchRead', 'hallRead', 'INPUT_PULLDOWN', 'DAC1', 'DAC2'];
       const e8266Only = ['D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'analogWriteRange'];
       for (const n of espOnly) if (!probe[n]) boardOnly[n] = `доступно лише на платах ESP8266/ESP32 (поточна плата — ${b.name})`;
-      for (const n of e32Only) if (!probe[n]) boardOnly[n] = `ця функція є лише на ESP32 (поточна плата — ${b.name})`;
+      for (const n of e32Only) if (!probe[n]) boardOnly[n] = b.family === 'esp32' ? `на ${b.name} цього немає (немає ЦАП / сенсорних пінів)` : `ця функція є лише на ESP32 (поточна плата — ${b.name})`;
       for (const n of e8266Only) if (!probe[n]) boardOnly[n] = `ця константа є лише на ESP8266 NodeMCU (поточна плата — ${b.name})`;
       const defines = { ARDUINO: 10819 };
-      if (b.id === 'uno') Object.assign(defines, { ARDUINO_AVR_UNO: 1, ARDUINO_ARCH_AVR: 1, __AVR__: 1, __AVR_ATmega328P__: 1 });
-      if (b.id === 'esp8266') Object.assign(defines, { ESP8266: 1, ARDUINO_ARCH_ESP8266: 1, ARDUINO_ESP8266_NODEMCU: 1 });
-      if (b.id === 'esp32') Object.assign(defines, { ESP32: 1, ARDUINO_ARCH_ESP32: 1, ARDUINO_ESP32_DEV: 1 });
+      Object.assign(defines, b.defines || {});
       const res = Sim.transpile(src, { int16: b.int16, globals: names, boardOnly, defines });
       res.apiNames = names;
       return res;
@@ -987,7 +988,7 @@
         if (m) line = Math.max(1, +m[1] - 1);
       }
       if (this.hooks.error) this.hooks.error(msg, line);
-      if (this.board && this.board.id !== 'uno' && this.hooks.serial && this.serialBaud) {
+      if (this.board && this.board.family !== 'avr' && this.hooks.serial && this.serialBaud) {
         this.hooks.serial(`\r\nGuru Meditation Error: Core 1 panic'ed (${msg})\r\nRebooting...\r\n`);
       }
       this.stop();

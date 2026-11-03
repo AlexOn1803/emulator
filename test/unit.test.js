@@ -124,6 +124,40 @@ void loop() {}`);
     assert.ok(e && /loop/.test(e.message));
   });
 
+  console.log('Нові плати');
+  await test('Arduino Micro: A6 = D4, переривання, int 16 біт', async () => {
+    const out = await runSetup('micro', `
+void isr() {}
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) { }
+  Serial.println(digitalPinToInterrupt(3));
+  Serial.println(digitalPinToInterrupt(7));
+  Serial.println(digitalPinToInterrupt(4));
+  int x = 40000; Serial.println(x);
+  Serial.println(A0);
+}
+void loop() {}`);
+    assert.strictEqual(out, '0\n4\n-1\n-25536\n18\n');
+  });
+  await test('Arduino Micro: analogRead(A6) читає пін D4', async () => {
+    const e = circuit('micro', [{ id: 'p', type: 'pot', props: { r: 10000, pos: 0.4 } }], [{ a: 'B:GND1', b: 'p:A' }, { a: 'p:B', b: 'B:5V' }, { a: 'p:W', b: 'B:D4' }]);
+    const rt = new Sim.Runtime(e, {});
+    e.runtime = rt;
+    const api = rt.buildApi();
+    rt.running = true;
+    near(api.analogRead(api.A6), 409, 2, 'A6');
+    near(api.analogRead(6), 409, 2, 'канал 6');
+  });
+  await test('ESP32-C3: 12-біт АЦП, LEDC є, ЦАП немає', async () => {
+    const out = await runSetup('esp32c3', `
+void setup() { Serial.begin(115200); ledcAttach(3, 5000, 8); ledcWrite(3, 128); Serial.println(LED_BUILTIN); Serial.println(ESP.getChipModel()); }
+void loop() {}`);
+    assert.strictEqual(out, '8\nESP32-C3\n');
+    const err = compileErr('void setup() { dacWrite(25, 100); }\nvoid loop() {}', 'esp32c3');
+    assert.ok(err && /dacWrite/.test(err.message), err && err.message);
+  });
+
   console.log('Електрична модель');
   await test('LED + 220 Ом від 5 В ≈ 12 мА', async () => {
     const e = circuit('uno', [{ id: 'r', type: 'resistor', props: { r: 220 } }, { id: 'l', type: 'led', props: { color: 'red' } }],

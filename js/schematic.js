@@ -102,7 +102,7 @@
       }
       if (board.led) {
         this.boardLed = el('circle', { cx: board.led.x, cy: board.led.y, r: 4, class: 'board-led' }, bg);
-        this.boardLedGlow = el('circle', { cx: board.led.x, cy: board.led.y, r: 10, fill: board.id === 'uno' ? '#ffb020' : '#3a8bff', opacity: 0, filter: 'url(#glow)' }, bg);
+        this.boardLedGlow = el('circle', { cx: board.led.x, cy: board.led.y, r: 10, fill: board.led.color, opacity: 0, filter: 'url(#glow)' }, bg);
       }
       this.boardEl = bg;
       // компоненти
@@ -521,7 +521,7 @@
         name = `<b>${pin.label}</b>`;
         if (pin.gpio != null) {
           const bits = [];
-          if (board.id !== 'uno') bits.push('GPIO' + pin.gpio);
+          if (board.family !== 'avr') bits.push('GPIO' + pin.gpio);
           if (board.pwmPins.includes(pin.gpio)) bits.push('ШІМ');
           if (board.adcPins.includes(pin.gpio)) bits.push('АЦП');
           if (board.inputOnly && board.inputOnly.includes(pin.gpio)) bits.push('лише вхід');
@@ -586,7 +586,8 @@
           if (board.led.activeLow && (!st || st.mode !== 'output')) b = 0;
         }
         this.boardLedGlow.setAttribute('opacity', (Math.sqrt(b) * 0.9).toFixed(2));
-        this.boardLed.setAttribute('fill', b > 0.02 ? (board.id === 'uno' ? '#ffcc33' : '#6aa8ff') : (board.id === 'uno' ? '#7a5a1a' : '#24406e'));
+        const avr = board.family === 'avr';
+        this.boardLed.setAttribute('fill', b > 0.02 ? (avr ? '#ffcc33' : '#6aa8ff') : (avr ? '#7a5a1a' : '#24406e'));
       }
     }
   }

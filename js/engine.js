@@ -210,7 +210,7 @@
       }
       this.power = [];
       if (v5Key) this.power.push({ node: this.nodeOf(v5Key), V: 5, name: '5V/VIN', maxA: 0.5 });
-      if (v33Key) this.power.push({ node: this.nodeOf(v33Key), V: 3.3, name: '3.3V', maxA: b.id === 'uno' ? 0.15 : 0.5 });
+      if (v33Key) this.power.push({ node: this.nodeOf(v33Key), V: 3.3, name: '3.3V', maxA: b.v33maxA || 0.5 });
       this.netKey = (k) => (parent.has(k) ? find(k) : null);
       this.topoDirty = false;
       this.dirty = true;

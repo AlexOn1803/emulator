@@ -17,8 +17,10 @@
     <label class="board-sel" title="Виберіть плату">
       <select id="board">
         <option value="uno">Arduino Uno</option>
+        <option value="micro">Arduino Micro</option>
         <option value="esp8266">ESP8266 NodeMCU</option>
         <option value="esp32">ESP32 DevKit</option>
+        <option value="esp32c3">ESP32‑C3 Super Mini</option>
       </select>
     </label>
     <button id="btnVerify" class="btn" title="Перевірити (скомпілювати) код">✓ <span class="lbl">Перевірити</span></button>
@@ -103,7 +105,7 @@
       <button class="icon-btn modal-close" data-a="close-help">✕</button>
       <h2>Як користуватися симулятором</h2>
       <ol>
-        <li><b>Виберіть плату</b> вгорі: Arduino Uno (5 В), ESP8266 NodeMCU або ESP32 (3.3 В).</li>
+        <li><b>Виберіть плату</b> вгорі: Arduino Uno чи Micro (5 В), ESP8266 NodeMCU, ESP32 або ESP32‑C3 Super Mini (3.3 В).</li>
         <li><b>Додайте компоненти</b> з панелі ліворуч від схеми — просто клацніть на потрібний.</li>
         <li><b>З'єднайте дротами</b>: клацніть на вивід (кружечок або квадратик піна), потім на інший вивід. Можна й просто протягнути мишею. <kbd>Esc</kbd> або правий клік — скасувати.</li>
         <li><b>Напишіть код</b> ліворуч (звичайний Arduino C++) і натисніть <b>▶ Запуск</b> (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>).</li>

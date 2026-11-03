@@ -792,6 +792,97 @@ void loop() {
 `,
     },
     {
+      id: 'micro-pot',
+      group: 'Arduino Micro',
+      title: 'Arduino Micro: потенціометр і ШІМ',
+      board: 'micro',
+      note: 'Arduino Micro (ATmega32U4) має вбудований USB, тому while (!Serial) чекає, доки відкриється монітор порту, а швидкість (бод) не має значення. ШІМ є на пінах 3, 5, 6, 9, 10, 11, 13.',
+      components: [
+        c('p1', 'pot', 230, -80, 0, { r: 10000, pos: 0.5 }),
+        c('r1', 'resistor', 88, 166, 90, { r: 220 }),
+        c('l1', 'led', 78, 236, 180, { color: 'blue' }),
+      ],
+      wires: [
+        w('p1:A', 'B:5V', RED),
+        w('p1:W', 'B:A0', YEL),
+        w('p1:B', 'B:GND1', BLK),
+        w('B:D9', 'r1:A', BLU),
+        w('r1:B', 'l1:A', BLU),
+        w('l1:K', 'B:GND2', BLK),
+      ],
+      code: `
+// Arduino Micro: яскравість світлодіода на D9 задає потенціометр на A0
+const int POT = A0;
+const int LED_PIN = 9;
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) { }       // чекаємо підключення USB (особливість ATmega32U4)
+  pinMode(LED_PIN, OUTPUT);
+  Serial.println("Arduino Micro готова");
+}
+
+void loop() {
+  int value = analogRead(POT);       // 0..1023
+  analogWrite(LED_PIN, value / 4);   // 0..255
+  Serial.print("pot:");
+  Serial.println(value);
+  delay(100);
+}
+`,
+    },
+    {
+      id: 'esp32c3-blink',
+      group: 'ESP32‑C3 Super Mini',
+      title: 'ESP32‑C3 Super Mini: блимання без delay() і кнопка',
+      board: 'esp32c3',
+      note: 'Вбудований синій світлодіод Super Mini підключений до GPIO8 і вмикається рівнем LOW. Блимання зроблено через millis(), тому кнопка реагує миттєво. Затисніть кнопку мишею.',
+      components: [
+        c('r1', 'resistor', 108, -50, 90, { r: 220 }),
+        c('l1', 'led', 118, -130, 0, { color: 'green' }),
+        c('b1', 'button', 210, -50, 270, { color: '#36c' }),
+      ],
+      wires: [
+        w('B:G3', 'r1:B', GRN),
+        w('r1:A', 'l1:A', GRN),
+        w('l1:K', 'B:GND', BLK),
+        w('B:G0', 'b1:A', BLU),
+        w('b1:B', 'B:GND', BLK),
+      ],
+      code: `
+const int LED_PIN = 3;     // зовнішній світлодіод
+const int BUTTON = 0;      // кнопка між GPIO0 і GND
+
+unsigned long lastBlink = 0;
+bool blinkOn = false;
+bool lastPressed = false;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_BUILTIN, OUTPUT);   // GPIO8, вмикається LOW
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON, INPUT_PULLUP);
+  Serial.println("ESP32-C3 Super Mini готова!");
+}
+
+void loop() {
+  // неблокуюче блимання вбудованим світлодіодом
+  if (millis() - lastBlink >= 300) {
+    lastBlink = millis();
+    blinkOn = !blinkOn;
+    digitalWrite(LED_BUILTIN, blinkOn ? LOW : HIGH);
+  }
+
+  bool pressed = digitalRead(BUTTON) == LOW;
+  digitalWrite(LED_PIN, pressed ? HIGH : LOW);
+  if (pressed != lastPressed) {
+    Serial.println(pressed ? "Кнопку натиснуто" : "Кнопку відпущено");
+    lastPressed = pressed;
+  }
+}
+`,
+    },
+    {
       id: 'esp8266-wifi',
       group: 'ESP8266',
       title: 'ESP8266: Wi‑Fi і світлодіод',
